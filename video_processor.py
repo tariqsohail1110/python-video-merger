@@ -63,14 +63,15 @@ class DriveService:
             if page_token is None:
                 break
 
-    def file_downloader(self, file_id: str, destination:str):
+    def file_downloader(self, url: str, destination:str):
         '''
         Downloads a file from the drive
 
-        file_id: the file id of the specific file to download
+        url: the file url
         destination: the folder to save the downloaded file
         '''
         service = self.get_drive_service(file_path, SCOPES)
+        file_id = url.split('/')[-2]
         request = service.files().get_media(fileId= file_id)
         fh = io.FileIO(destination, 'wb')
         downloader = MediaIoBaseDownload(fh, request)
