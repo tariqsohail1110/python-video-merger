@@ -74,7 +74,3 @@ logger.error()
 
 
 Logs appear directly in the terminal where you run `main.py`.
-
-## License
-
-MIT
