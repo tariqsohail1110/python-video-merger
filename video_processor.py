@@ -13,11 +13,12 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 file_path = "E:/Personal/Work/Python/Projects/video-merger/json-keys/client_secret_44564984563-5hs0bbeafkqinc7r50cb8ccih49ijcp9.apps.googleusercontent.com.json"
 
 class DriveService:
-    def __init__(self, file_path:str, SCOPES:str):
+    def __init__(self, file_path:str, SCOPES:list):
         self.file_path = file_path
         self.SCOPES = SCOPES
+        self.service = None
 
-    def get_drive_service(self, file_path:str, SCOPES:str):
+    def get_drive_service(self):
         '''
         Getting google drive access
 
@@ -25,32 +26,28 @@ class DriveService:
         file_path: the file path to the credential file
         SCOPES: Giving full access to read, modify user's files
         '''
+        if self.service is not None:
+            return self.service
+
         creds = None
         if os.path.exists('token.json'):
-            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+            creds = Credentials.from_authorized_user_file('token.json', self.SCOPES)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(file_path, SCOPES)
+                flow = InstalledAppFlow.from_client_secrets_file(self.file_path, self.SCOPES)
                 creds = flow.run_local_server(port=0)
             with open('token.json', 'w') as token:
                 token.write(creds.to_json())
-        drive_service = build("drive", "v3", credentials=creds)
-        # file = drive_service.files().get(
-        #     fileId='123dsi-nYM2BSh5p9BlM51XphmPYz0ZUx',
-        #     fields='id, name, mimeType, size'
-        #     ).execute()
-        # print(file)
-        return drive_service
-
-    # get_drive_service(file_path, SCOPES)
+        self.service = build("drive", "v3", credentials=creds)
+        return self.service
 
     def list_all_files(self):
         '''
         listing all the files in the drive folder
         '''
-        service = self.get_drive_service(file_path, SCOPES)
+        service = self.get_drive_service()
         page_token = None
         while True:
             response = service.files().list(
@@ -58,7 +55,7 @@ class DriveService:
                 pageToken= page_token
             ).execute()
             for file in response.get('files', []):
-                print(f"{file['name']} ({file['id']}) - {file['mimeType']}")
+                logger.info(f"{file['name']} ({file['id']}) - {file['mimeType']}")
             page_token = response.get('nextPageToken', None)
             if page_token is None:
                 break
@@ -70,8 +67,14 @@ class DriveService:
         url: the file url
         destination: the folder to save the downloaded file
         '''
-        service = self.get_drive_service(file_path, SCOPES)
-        file_id = url.split('/')[-2]
+        service = self.get_drive_service()
+        file_id = url
+        if'/' in url:
+            parts = url.split('/')
+            if 'd' in parts:
+                file_id = parts[parts.index('d') + 1]
+            else:
+                file_id = parts[-2]
         request = service.files().get_media(fileId= file_id)
         fh = io.FileIO(destination, 'wb')
         downloader = MediaIoBaseDownload(fh, request)
@@ -79,8 +82,8 @@ class DriveService:
         try:
             while not done:
                 status, done = downloader.next_chunk()
-                print(f"Download {int(status.progress() * 100)}%. ")
-            print(f"File downloaded to {destination}")
+                logger.info(f"Download {int(status.progress() * 100)}%. ")
+            logger.info(f"File downloaded to {destination}")
         except FileNotFoundError:
             logger.error("File not Found!")
         except Exception as e:
@@ -94,14 +97,14 @@ class DriveService:
         local_path: the output video's path
         drive_folder_id: the folder id where the file will be uploaded
         '''
-        service = self.get_drive_service(file_path, SCOPES)
-        file_metadata = {'name': local_path.split('/')[-1]}
+        service = self.get_drive_service()
+        file_metadata = {'name': os.path.basename(local_path)}
         try:
             if drive_folder_id:
                 file_metadata['parents'] = [drive_folder_id]
             media = MediaFileUpload(local_path, resumable=True)
             file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-            print(f'File Uploaded. File ID: {file.get('id')}')
+            logger.info(f'File Uploaded. File ID: {file.get('id')}')
         except FileNotFoundError:
             logger.error("File not found!")
         except Exception as e:
@@ -126,7 +129,9 @@ class DriveService:
 
             self.upload_file('E:/Personal/Work/Python/Projects/video-merger/outputs/output.mp4', '123dsi-nYM2BSh5p9BlM51XphmPYz0ZUx')
 
-            print('Done')
+            logger.info('Done')
         
         except FileNotFoundError:
-            logger.error("File Not Found!")
+            logger.error("One of the input clips weren't found!")
+        except Exception as e:
+            logger.error(f"Unexpected Error {e}")

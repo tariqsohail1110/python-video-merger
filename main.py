@@ -1,5 +1,13 @@
 from flask import Flask, render_template, request
 from video_processor import DriveService, file_path, SCOPES
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format= "%(levelname)s: %(message)s"
+)
+import video_processor
+print(video_processor.__file__)
 
 app = Flask(__name__)
 
